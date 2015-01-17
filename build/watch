@@ -2,4 +2,4 @@
 
 cd ${0%/*}
 ./build
-grunt watch
+node_modules/grunt-cli/bin/grunt watch

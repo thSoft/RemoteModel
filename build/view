@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 cd ${0%/*}
-grunt open
+node_modules/grunt-cli/bin/grunt open

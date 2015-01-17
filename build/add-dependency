@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
 cd ${0%/*}
-bower install $1 --save
-tsd query $1 --action install --save
+node_modules/bower/bin/bower install $1 --save
+node node_modules/tsd/build/cli.js query $1 --action install --save

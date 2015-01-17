@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 cd ${0%/*}
-grunt elm bower_concat typescript less dom_munger
+node_modules/grunt-cli/bin/grunt elm bower_concat typescript less dom_munger
