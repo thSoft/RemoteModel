@@ -12,4 +12,4 @@ cd RemoteModel/build
 
 ## Use
 
-Enter a Firebase URL, e.g.: https://thsoft.firebaseio-demo.com/RemoteModel/book/0/authors/0
+Enter a Firebase URL, e.g.: https://thsoft.firebaseio-demo.com/RemoteModel/book/0
