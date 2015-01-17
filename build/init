@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+cd ${0%/*}
+npm install -g grunt-cli
+npm install -g bower
+npm install -g tsd@0.6
+npm install
+bower install
+tsd reinstall --save
+./build

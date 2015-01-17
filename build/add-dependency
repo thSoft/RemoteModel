@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+cd ${0%/*}
+bower install $1 --save
+tsd query $1 --action install --save

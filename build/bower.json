@@ -1,0 +1,7 @@
+{
+  "name": "RemoteModel",
+  "dependencies": {
+    "firebase": "v2.0.2",
+    "FireElm": "git://github.com/thSoft/FireElm.git"
+  }
+}

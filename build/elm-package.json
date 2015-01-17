@@ -1,0 +1,13 @@
+{
+    "version": "1.0.0",
+    "summary": "Remote Model",
+    "repository": "https://github.com/thSoft/RemoteModel.git",
+    "license": "BSD3",
+    "source-directories": [
+        "../src/main"
+    ],
+    "exposed-modules": [],
+    "dependencies": {
+        "elm-lang/core": "1.1.0 <= v < 2.0.0"
+    }
+}
