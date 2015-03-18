@@ -46,13 +46,16 @@ makeBook value =
   let decoder =
         object2 Book
           ("title" := string)
-          (Decode.oneOf ["authors" := list reference, succeed []])
+          ("authors" := list reference |> fallback [])
       failedBook message =
         { 
           title = "Can't decode book: " ++ message,
           authors = []
         }
   in value |> decodeValue decoder |> or failedBook
+
+fallback : a -> Decoder a -> Decoder a
+fallback defaultValue decoder = Decode.oneOf [decoder, succeed defaultValue]
 
 or : (x -> a) -> Result x a -> a
 or makeBadResult result =
