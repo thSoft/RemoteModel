@@ -3,9 +3,12 @@ module RemoteModel where
 import Signal (..)
 import Signal
 import Maybe (..)
+import Maybe
 import List (..)
 import List
+import Dict (..)
 import Json.Decode (..)
+import Json.Decode as Decode
 import Graphics.Element (..)
 import Graphics.Element as Element
 import Graphics.Input (..)
@@ -30,7 +33,7 @@ port writerFeed : Signal (Entry Writer)
 
 type alias Book = {
   title: String,
-  authors: Maybe (List String)
+  authors: List (Reference Writer)
 }
 
 bookCache : Signal (Cache Book)
@@ -43,11 +46,11 @@ makeBook value =
   let decoder =
         object2 Book
           ("title" := string)
-          (maybe ("authors" := list string))
+          (Decode.oneOf ["authors" := list reference, succeed []])
       failedBook message =
         { 
           title = "Can't decode book: " ++ message,
-          authors = Nothing
+          authors = []
         }
   in value |> decodeValue decoder |> or failedBook
 
@@ -57,9 +60,6 @@ or makeBadResult result =
     Err error -> error |> makeBadResult
     Ok goodResult -> goodResult
 
-maybeList : (a -> Maybe (List b)) -> a -> List b
-maybeList accessor object = object |> accessor |> withDefault []
-
 bookUrlContent : Signal Content
 bookUrlContent = bookUrlContentChannel |> subscribe
 
@@ -68,26 +68,21 @@ bookUrlContent = bookUrlContentChannel |> subscribe
 view : Cache Writer -> Cache Book -> Content -> Element
 view writerCache bookCache bookUrlContent =
   let urlField = field Field.defaultStyle (bookUrlContentChannel |> send) "Book URL" bookUrlContent
-      book = findAndViewBook writerCache bookCache bookUrlContent.string
+      url = bookUrlContent.string
+      book = bookCache |> get url |> Maybe.map (viewBook writerCache) |> withDefault (loading "book" url)
   in [urlField, book] |> flow down
 
 loading : String -> String -> Element
 loading entity url = ("[" ++ entity ++ "@" ++ url ++ "]") |> plainText
 
-findAndViewBook : Cache Writer -> Cache Book -> String -> Element
-findAndViewBook writerCache bookCache url = findAndMap (viewBook writerCache) (loading "book" url) bookCache url
-
 viewBook : Cache Writer -> Book -> Element
 viewBook writerCache book =
   let titleView = book.title |> fromString |> bold |> leftAligned
-      authors = book |> maybeList .authors
+      authors = book.authors
       by = if authors |> isEmpty then Element.empty else " by:" |> plainText
       header = [titleView, by] |> flow right
-      authorsView = authors |> List.map (findAndViewWriter writerCache)
+      authorsView = authors |> List.map (\reference -> writerCache |> reference.lookup |> Maybe.map viewWriter |> withDefault (loading "writer" reference.url))
   in header :: authorsView |> flow down
-
-findAndViewWriter : Cache Writer -> String -> Element
-findAndViewWriter writerCache url = findAndMap viewWriter (loading "writer" url) writerCache url
 
 viewWriter : Writer -> Element
 viewWriter writer = writer.name |> plainText
@@ -107,4 +102,8 @@ port writerUrls : Signal (List String)
 port writerUrls = Signal.map2 collectWriterUrls bookUrlContent bookCache
 
 collectWriterUrls : Content -> Cache Book -> List String
-collectWriterUrls bookUrlContent bookCache = findAndMap (maybeList .authors) [] bookCache bookUrlContent.string
+collectWriterUrls bookUrlContent bookCache =
+  bookCache
+  |> get bookUrlContent.string
+  |> Maybe.map (.authors >> List.map .url)
+  |> withDefault []

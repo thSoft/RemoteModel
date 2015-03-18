@@ -1,9 +1,10 @@
 module Cache where
 
 import Dict (..)
+import Dict
 import Signal (..)
-import Maybe (..)
-import Maybe
+import Json.Decode (..)
+import Json.Decode as Decode
 
 type alias Cache a = Dict String a
 
@@ -21,5 +22,16 @@ updateCache transform entry cache =
     Nothing -> cache
     Just { url, value } -> cache |> insert url (value |> transform)
 
-findAndMap : (a -> b) -> b -> Cache a -> String -> b
-findAndMap transform default cache url = cache |> get url |> Maybe.map transform |> withDefault default
+type alias Reference a = {
+  url: String,
+  lookup: Cache a -> Maybe a
+}
+
+reference : Decoder (Reference a)
+reference =
+  string |> Decode.map (\url ->
+    {
+      url = url,
+      lookup = Dict.get url
+    }
+  )
