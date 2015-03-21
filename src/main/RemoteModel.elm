@@ -16,6 +16,7 @@ import Graphics.Input.Field (..)
 import Graphics.Input.Field as Field
 import Text (..)
 import Cache (..)
+import Cache
 
 main : Signal Element
 main = Signal.map3 view writerCache bookCache bookUrlContent
@@ -27,9 +28,9 @@ type alias Writer = {
 }
 
 writerCache : Signal (Cache Writer)
-writerCache = writerFeed |> loadCache identity
+writerCache = writerFeed |> Cache.create identity
 
-port writerFeed : Signal (Entry Writer)
+port writerFeed : Signal (Cache.Update Writer)
 
 type alias Book = {
   title: String,
@@ -37,12 +38,12 @@ type alias Book = {
 }
 
 bookCache : Signal (Cache Book)
-bookCache = bookFeed |> loadCache makeBook
+bookCache = bookFeed |> Cache.create decodeBook
 
-port bookFeed : Signal (Entry Value)
+port bookFeed : Signal (Cache.Update Value)
 
-makeBook : Value -> Book
-makeBook value =
+decodeBook : Value -> Book
+decodeBook value =
   let decoder =
         object2 Book
           ("title" := string)
@@ -96,10 +97,10 @@ bookUrlContentChannel : Channel Content
 bookUrlContentChannel = channel noContent
 
 port bookUrls : Signal (List String)
-port bookUrls = bookUrlContent |> Signal.map makeBookUrls
+port bookUrls = Signal.map collectBookUrls bookUrlContent
 
-makeBookUrls : Content -> List String
-makeBookUrls bookUrlContent = [bookUrlContent.string]
+collectBookUrls : Content -> List String
+collectBookUrls bookUrlContent = [bookUrlContent.string]
 
 port writerUrls : Signal (List String)
 port writerUrls = Signal.map2 collectWriterUrls bookUrlContent bookCache
