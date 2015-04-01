@@ -5,17 +5,13 @@ interface Elm {
 }
 
 interface RemoteModelPorts {
-  bookUrls: PortFromElm<Array<string>>;
-  bookFeed: PortToElm<FireElm.Data>;
-  writerUrls: PortFromElm<Array<string>>;
-  writerFeed: PortToElm<FireElm.Data>;
+  urls: PortFromElm<Array<string>>;
+  feed: PortToElm<FireElm.Data>;
 }
 
 window.onload = () => {
   var component = Elm.fullscreen(Elm.RemoteModel, {
-    bookFeed: null,
-    writerFeed: null
+    feed: null
   });
-  FireElm.readData(component.ports.bookUrls, component.ports.bookFeed);
-  FireElm.readData(component.ports.writerUrls, component.ports.writerFeed);
+  FireElm.readData(component.ports.urls, component.ports.feed);
 }

@@ -4,6 +4,8 @@ import Signal (..)
 import Signal
 import Maybe (..)
 import Maybe
+import Result (..)
+import Result
 import List (..)
 import List
 import Dict (..)
@@ -15,48 +17,80 @@ import Graphics.Input (..)
 import Graphics.Input.Field (..)
 import Graphics.Input.Field as Field
 import Text (..)
-import Cache (..)
-import Cache
+import ExternalStorage.Cache (Cache)
+import ExternalStorage.Cache as Cache
+import ExternalStorage.Reference (Reference)
+import ExternalStorage.Reference as Reference
 
 main : Signal Element
-main = Signal.map3 view writerCache bookCache bookUrlContent
+main = Signal.map3 view bookUrlContent cache model
 
 -- Model
+
+model : Signal (Reference Book)
+model = Signal.map (Reference.create bookDecoder) bookUrl
 
 type alias Writer = {
   name: String
 }
-
-writerCache : Signal (Cache Writer)
-writerCache = writerFeed |> Cache.create identity
-
-port writerFeed : Signal (Cache.Update Writer)
 
 type alias Book = {
   title: String,
   authors: List (Reference Writer)
 }
 
-bookCache : Signal (Cache Book)
-bookCache = bookFeed |> Cache.create decodeBook
-
-port bookFeed : Signal (Cache.Update Value)
-
-decodeBook : Value -> Book
-decodeBook value =
-  let decoder =
-        object2 Book
-          ("title" := string)
-          ("authors" := list reference |> fallback [])
-      failedBook message =
-        { 
-          title = "Can't decode book: " ++ message,
-          authors = []
-        }
-  in value |> decodeValue decoder |> or failedBook
+bookDecoder : Decoder Book
+bookDecoder =
+  object2 Book
+    ("title" := string)
+    ("authors" := list (Reference.decoder writerDecoder) |> fallback [])
 
 fallback : a -> Decoder a -> Decoder a
 fallback defaultValue decoder = Decode.oneOf [decoder, succeed defaultValue]
+
+writerDecoder : Decoder Writer
+writerDecoder = 
+  object1 Writer
+    ("name" := string)
+
+-- Cache
+
+cache : Signal Cache
+cache = feed |> Cache.create
+
+port feed : Signal Cache.Update
+
+port urls : Signal (List String)
+port urls = Signal.map2 (::) bookUrl writerUrls
+
+bookUrl : Signal String
+bookUrl = Signal.map .string bookUrlContent
+
+writerUrls : Signal (List String)
+writerUrls = Signal.map2 collectWriterUrls cache model
+
+collectWriterUrls : Cache -> Reference Book -> List String
+collectWriterUrls cache bookReference =
+  bookReference.get cache |> toMaybe |> Maybe.map (\book -> book.authors |> List.map .url) |> withDefault []
+
+-- Input
+
+bookUrlContent : Signal Content
+bookUrlContent = bookUrlContentChannel |> subscribe
+
+bookUrlContentChannel : Channel Content
+bookUrlContentChannel = channel noContent
+
+-- View
+
+view : Content -> Cache -> Reference Book -> Element
+view bookUrlContent cache bookReference =
+  let urlField = field Field.defaultStyle (bookUrlContentChannel |> send) "Book URL" bookUrlContent
+      bookView = bookReference |> viewReference viewBook cache
+  in [urlField, bookView] |> flow down
+
+viewReference : (Cache -> a -> Element) -> Cache -> Reference a -> Element
+viewReference viewValue cache reference = reference.get cache |> Result.map (viewValue cache) |> or (viewError reference.url)
 
 or : (x -> a) -> Result x a -> a
 or makeBadResult result =
@@ -64,50 +98,17 @@ or makeBadResult result =
     Err error -> error |> makeBadResult
     Ok goodResult -> goodResult
 
-bookUrlContent : Signal Content
-bookUrlContent = bookUrlContentChannel |> subscribe
+viewError : String -> String -> Element
+viewError url error = ("[" ++ url ++ ": " ++ error ++ "]") |> plainText
 
--- View
-
-view : Cache Writer -> Cache Book -> Content -> Element
-view writerCache bookCache bookUrlContent =
-  let urlField = field Field.defaultStyle (bookUrlContentChannel |> send) "Book URL" bookUrlContent
-      url = bookUrlContent.string
-      book = bookCache |> get url |> Maybe.map (viewBook writerCache) |> withDefault (loading "book" url)
-  in [urlField, book] |> flow down
-
-loading : String -> String -> Element
-loading entity url = ("[" ++ entity ++ "@" ++ url ++ "]") |> plainText
-
-viewBook : Cache Writer -> Book -> Element
-viewBook writerCache book =
+viewBook : Cache -> Book -> Element
+viewBook cache book =
   let titleView = book.title |> fromString |> bold |> leftAligned
       authors = book.authors
       by = if authors |> isEmpty then Element.empty else " by:" |> plainText
       header = [titleView, by] |> flow right
-      authorsView = authors |> List.map (\reference -> writerCache |> reference.lookup |> Maybe.map viewWriter |> withDefault (loading "writer" reference.url))
+      authorsView = authors |> List.map (viewReference viewWriter cache)
   in header :: authorsView |> flow down
 
-viewWriter : Writer -> Element
-viewWriter writer = writer.name |> plainText
-
--- Input
-
-bookUrlContentChannel : Channel Content
-bookUrlContentChannel = channel noContent
-
-port bookUrls : Signal (List String)
-port bookUrls = Signal.map collectBookUrls bookUrlContent
-
-collectBookUrls : Content -> List String
-collectBookUrls bookUrlContent = [bookUrlContent.string]
-
-port writerUrls : Signal (List String)
-port writerUrls = Signal.map2 collectWriterUrls bookUrlContent bookCache
-
-collectWriterUrls : Content -> Cache Book -> List String
-collectWriterUrls bookUrlContent bookCache =
-  bookCache
-  |> get bookUrlContent.string
-  |> Maybe.map (.authors >> List.map .url)
-  |> withDefault []
+viewWriter : Cache -> Writer -> Element
+viewWriter _ writer = writer.name |> plainText

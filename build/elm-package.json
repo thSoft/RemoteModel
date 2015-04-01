@@ -9,6 +9,6 @@
     "exposed-modules": [],
     "dependencies": {
         "elm-lang/core": "1.1.0 <= v < 2.0.0",
-        "thSoft/ElmCache": "1.0.0 <= v < 2.0.0"
+        "thSoft/ExternalStorage": "1.0.0 <= v < 2.0.0"
     }
 }
