@@ -98,8 +98,13 @@ or makeBadResult result =
     Err error -> error |> makeBadResult
     Ok goodResult -> goodResult
 
-viewError : String -> String -> Element
-viewError url error = ("[" ++ url ++ ": " ++ error ++ "]") |> plainText
+viewError : String -> Reference.Error -> Element
+viewError url error =
+  let text = 
+        case error of
+          Reference.NotFound -> "[Loading " ++ url ++ "]"
+          Reference.DecodingFailed message -> "[Can't decode " ++ url ++ ": " ++ message ++ "]"
+  in text |> plainText
 
 viewBook : Cache -> Book -> Element
 viewBook cache book =
