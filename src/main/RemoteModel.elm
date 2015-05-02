@@ -1,34 +1,36 @@
 module RemoteModel where
 
-import Signal (..)
+import Signal exposing (..)
 import Signal
-import Maybe (..)
+import Maybe exposing (..)
 import Maybe
-import Result (..)
+import Result exposing (..)
 import Result
-import List (..)
+import List exposing (..)
 import List
-import Dict (..)
-import Json.Decode (..)
+import Dict exposing (..)
+import Json.Decode exposing (..)
 import Json.Decode as Decode
-import Graphics.Element (..)
+import Graphics.Element exposing (..)
 import Graphics.Element as Element
-import Graphics.Input (..)
-import Graphics.Input.Field (..)
+import Graphics.Input exposing (..)
+import Graphics.Input.Field exposing (..)
 import Graphics.Input.Field as Field
-import Text (..)
-import ExternalStorage.Cache (Cache)
+import Text exposing (..)
 import ExternalStorage.Cache as Cache
-import ExternalStorage.Reference (Reference)
+import ExternalStorage.Cache exposing (..)
 import ExternalStorage.Reference as Reference
+import ExternalStorage.Reference exposing (..)
 
 main : Signal Element
-main = Signal.map3 view bookUrlContent cache model
+main = Signal.map2 view bookUrlContent model
 
 -- Model
 
 model : Signal (Reference Book)
-model = Signal.map (Reference.create bookDecoder) bookUrl
+model =
+  let load bookUrl cache = Reference.create (bookDecoder cache) bookUrl cache
+  in Signal.map2 load bookUrl cache
 
 type alias Writer = {
   name: String
@@ -39,17 +41,14 @@ type alias Book = {
   authors: List (Reference Writer)
 }
 
-bookDecoder : Decoder Book
-bookDecoder =
+bookDecoder : Cache -> Decoder Book
+bookDecoder cache =
   object2 Book
     ("title" := string)
-    ("authors" := list (Reference.decoder writerDecoder) |> fallback [])
-
-fallback : a -> Decoder a -> Decoder a
-fallback defaultValue decoder = Decode.oneOf [decoder, succeed defaultValue]
+    ("authors" := list (Reference.decoder writerDecoder cache))
 
 writerDecoder : Decoder Writer
-writerDecoder = 
+writerDecoder =
   object1 Writer
     ("name" := string)
 
@@ -67,30 +66,30 @@ bookUrl : Signal String
 bookUrl = Signal.map .string bookUrlContent
 
 writerUrls : Signal (List String)
-writerUrls = Signal.map2 collectWriterUrls cache model
+writerUrls = Signal.map collectWriterUrls model
 
-collectWriterUrls : Cache -> Reference Book -> List String
-collectWriterUrls cache bookReference =
-  bookReference.get cache |> toMaybe |> Maybe.map (\book -> book.authors |> List.map .url) |> withDefault []
+collectWriterUrls : Reference Book -> List String
+collectWriterUrls bookReference =
+  bookReference.get |> toMaybe |> Maybe.map (\book -> book.authors |> List.map .url) |> withDefault []
 
 -- Input
 
 bookUrlContent : Signal Content
-bookUrlContent = bookUrlContentChannel |> subscribe
+bookUrlContent = bookUrlContentMailbox.signal
 
-bookUrlContentChannel : Channel Content
-bookUrlContentChannel = channel noContent
+bookUrlContentMailbox : Mailbox Content
+bookUrlContentMailbox = mailbox noContent
 
 -- View
 
-view : Content -> Cache -> Reference Book -> Element
-view bookUrlContent cache bookReference =
-  let urlField = field Field.defaultStyle (bookUrlContentChannel |> send) "Book URL" bookUrlContent
-      bookView = bookReference |> viewReference viewBook cache
+view : Content -> Reference Book -> Element
+view bookUrlContent bookReference =
+  let urlField = field Field.defaultStyle (bookUrlContentMailbox.address |> message) "Book URL" bookUrlContent
+      bookView = bookReference |> viewReference viewBook
   in [urlField, bookView] |> flow down
 
-viewReference : (Cache -> a -> Element) -> Cache -> Reference a -> Element
-viewReference viewValue cache reference = reference.get cache |> Result.map (viewValue cache) |> or (viewError reference.url)
+viewReference : (a -> Element) -> Reference a -> Element
+viewReference viewValue reference = reference.get |> Result.map viewValue |> or (viewError reference.url)
 
 or : (x -> a) -> Result x a -> a
 or makeBadResult result =
@@ -100,20 +99,20 @@ or makeBadResult result =
 
 viewError : String -> Reference.Error -> Element
 viewError url error =
-  let text = 
+  let text =
         case error of
           Reference.NotFound -> "[Loading " ++ url ++ "]"
           Reference.DecodingFailed message -> "[Can't decode " ++ url ++ ": " ++ message ++ "]"
-  in text |> plainText
+  in text |> fromString |> leftAligned
 
-viewBook : Cache -> Book -> Element
-viewBook cache book =
+viewBook : Book -> Element
+viewBook book =
   let titleView = book.title |> fromString |> bold |> leftAligned
       authors = book.authors
-      by = if authors |> isEmpty then Element.empty else " by:" |> plainText
+      by = if authors |> isEmpty then Element.empty else " by:" |> fromString |> leftAligned
       header = [titleView, by] |> flow right
-      authorsView = authors |> List.map (viewReference viewWriter cache)
+      authorsView = authors |> List.map (viewReference viewWriter)
   in header :: authorsView |> flow down
 
-viewWriter : Cache -> Writer -> Element
-viewWriter _ writer = writer.name |> plainText
+viewWriter : Writer -> Element
+viewWriter writer = writer.name |> fromString |> leftAligned
