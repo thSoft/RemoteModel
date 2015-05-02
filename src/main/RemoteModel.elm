@@ -1,29 +1,22 @@
 module RemoteModel where
 
 import Signal exposing (..)
-import Signal
 import Maybe exposing (..)
-import Maybe
 import Result exposing (..)
-import Result
 import List exposing (..)
-import List
-import Dict exposing (..)
 import Json.Decode exposing (..)
-import Json.Decode as Decode
 import Graphics.Element exposing (..)
 import Graphics.Element as Element
-import Graphics.Input exposing (..)
 import Graphics.Input.Field exposing (..)
 import Graphics.Input.Field as Field
 import Text exposing (..)
-import ExternalStorage.Cache as Cache
 import ExternalStorage.Cache exposing (..)
-import ExternalStorage.Reference as Reference
+import ExternalStorage.Cache as Cache
 import ExternalStorage.Reference exposing (..)
+import ExternalStorage.Reference as Reference
 
 main : Signal Element
-main = Signal.map2 view bookUrlContent model
+main = Signal.map2 view bookUrlContentMailbox.signal model
 
 -- Model
 
@@ -32,13 +25,13 @@ model =
   let load bookUrl cache = Reference.create (bookDecoder cache) bookUrl cache
   in Signal.map2 load bookUrl cache
 
-type alias Writer = {
-  name: String
-}
-
 type alias Book = {
   title: String,
   authors: List (Reference Writer)
+}
+
+type alias Writer = {
+  name: String
 }
 
 bookDecoder : Cache -> Decoder Book
@@ -63,7 +56,7 @@ port urls : Signal (List String)
 port urls = Signal.map2 (::) bookUrl writerUrls
 
 bookUrl : Signal String
-bookUrl = Signal.map .string bookUrlContent
+bookUrl = Signal.map .string bookUrlContentMailbox.signal
 
 writerUrls : Signal (List String)
 writerUrls = Signal.map collectWriterUrls model
@@ -73,9 +66,6 @@ collectWriterUrls bookReference =
   bookReference.get |> toMaybe |> Maybe.map (\book -> book.authors |> List.map .url) |> withDefault []
 
 -- Input
-
-bookUrlContent : Signal Content
-bookUrlContent = bookUrlContentMailbox.signal
 
 bookUrlContentMailbox : Mailbox Content
 bookUrlContentMailbox = mailbox noContent
