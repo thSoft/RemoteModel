@@ -1,10 +1,6 @@
 module RemoteModel where
 
 import Signal exposing (..)
-import Maybe exposing (..)
-import Result exposing (..)
-import List exposing (..)
-import Dict
 import Json.Decode exposing (..)
 import Graphics.Element as Element exposing (..)
 import Graphics.Input.Field as Field exposing (..)
