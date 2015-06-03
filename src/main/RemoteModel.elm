@@ -3,6 +3,7 @@ module RemoteModel where
 import Signal exposing (..)
 import Json.Decode exposing (..)
 import Graphics.Element as Element exposing (..)
+import Graphics.Input exposing (..)
 import Graphics.Input.Field as Field exposing (..)
 import Text exposing (..)
 import ExternalStorage.Cache as Cache exposing (..)
@@ -123,8 +124,11 @@ libraryUrlContentMailbox = mailbox noContent
 view : Content -> Result Error (Remote Library) -> Element
 view libraryUrlContent libraryResult =
   let urlField = field Field.defaultStyle (libraryUrlContentMailbox.address |> message) "Library URL" libraryUrlContent
+      exampleContent = Content "https://thsoft.firebaseio-demo.com/RemoteModel/library/0" (Selection 0 0 Forward)
+      exampleButton = button (exampleContent |> message libraryUrlContentMailbox.address) "Load example data"
+      header = [urlField, exampleButton] |> flow right
       libraryView = libraryResult |> viewReference viewLibrary
-  in [urlField, libraryView] |> flow down
+  in [header, libraryView] |> flow down
 
 viewReference : (Remote a -> Element) -> Result Error (Remote a) -> Element
 viewReference viewValue result = result |> Result.map viewValue |> or viewError

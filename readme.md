@@ -9,7 +9,3 @@ cd RemoteModel/build
 ./init
 ./view
 ```
-
-## Use
-
-Enter a Firebase URL, e.g.: https://thsoft.firebaseio-demo.com/RemoteModel/library/0
