@@ -9,12 +9,38 @@ import ExternalStorage.Cache as Cache exposing (..)
 import ExternalStorage.Loader exposing (..)
 
 main : Signal Element
-main = Signal.map2 view bookUrlContentMailbox.signal model
+main = Signal.map2 view libraryUrlContentMailbox.signal model
 
 -- Model
 
-model : Signal (Result Error (Remote Book))
-model = Signal.map2 loadBook cache bookUrl
+model : Signal (Result Error (Remote Library))
+model = Signal.map2 loadLibrary cache libraryUrl
+
+loadLibrary : Cache -> String -> Result Error (Remote Library)
+loadLibrary cache url = load cache rawLibraryDecoder parseLibrary url
+
+type alias Library = {
+  books: List (Remote Book)
+}
+
+rawLibraryDecoder : Decoder RawLibrary
+rawLibraryDecoder =
+  object1 RawLibrary
+    ("books" := list string)
+
+parseLibrary : Cache -> RawLibrary -> Result Error Library
+parseLibrary cache rawLibrary =
+  let booksResult = rawLibrary.books |> loadList cache loadBook
+  in
+    booksResult |> Result.map (\books ->
+      {
+        books = books
+      }
+    )
+
+type alias RawLibrary = {
+  books: List String
+}
 
 loadBook : Cache -> String -> Result Error (Remote Book)
 loadBook cache url = load cache rawBookDecoder parseBook url
@@ -66,35 +92,39 @@ cache = feed |> Cache.create
 port feed : Signal Cache.Update
 
 port urls : Signal (List String)
-port urls = Signal.map2 (::) bookUrl writerUrls
+port urls = Signal.map2 (::) libraryUrl otherUrls
 
-bookUrl : Signal String
-bookUrl = Signal.map .string bookUrlContentMailbox.signal
+libraryUrl : Signal String
+libraryUrl = Signal.map .string libraryUrlContentMailbox.signal
 
-writerUrls : Signal (List String)
-writerUrls = Signal.map collectWriterUrls model
+otherUrls : Signal (List String)
+otherUrls = Signal.map collectUrlsOfLibraryResult model
 
-collectWriterUrls : Result Error (Remote Book) -> List String
-collectWriterUrls bookResult =
-  case bookResult of
+collectUrlsOfLibraryResult : Result Error (Remote Library) -> List String
+collectUrlsOfLibraryResult libraryResult =
+  case libraryResult of
     Result.Err error ->
       case error of
         NotFound { url } -> [url]
         _ -> []
-    Result.Ok book -> [book.author.url]
+    Result.Ok library ->
+      library.books |> List.map collectUrlsOfBook |> List.concat
+
+collectUrlsOfBook : Remote Book -> List String
+collectUrlsOfBook book = [book.url, book.author.url]
 
 -- Input
 
-bookUrlContentMailbox : Mailbox Content
-bookUrlContentMailbox = mailbox noContent
+libraryUrlContentMailbox : Mailbox Content
+libraryUrlContentMailbox = mailbox noContent
 
 -- View
 
-view : Content -> Result Error (Remote Book) -> Element
-view bookUrlContent bookResult =
-  let urlField = field Field.defaultStyle (bookUrlContentMailbox.address |> message) "Book URL" bookUrlContent
-      bookView = bookResult |> viewReference viewBook
-  in [urlField, bookView] |> flow down
+view : Content -> Result Error (Remote Library) -> Element
+view libraryUrlContent libraryResult =
+  let urlField = field Field.defaultStyle (libraryUrlContentMailbox.address |> message) "Library URL" libraryUrlContent
+      libraryView = libraryResult |> viewReference viewLibrary
+  in [urlField, libraryView] |> flow down
 
 viewReference : (Remote a -> Element) -> Result Error (Remote a) -> Element
 viewReference viewValue result = result |> Result.map viewValue |> or viewError
@@ -112,6 +142,12 @@ viewError error =
           NotFound { url }-> "[Loading " ++ url ++ "]"
           DecodingFailed { url, message } -> "[Can't decode " ++ url ++ ": " ++ message ++ "]"
   in text |> fromString |> leftAligned
+
+viewLibrary : Remote Library -> Element
+viewLibrary library =
+  let header = "Books:" |> fromString |> leftAligned
+      booksView = library.books |> List.map viewBook |> flow down
+  in [header, booksView] |> flow down
 
 viewBook : Remote Book -> Element
 viewBook book =
