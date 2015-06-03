@@ -18,7 +18,7 @@ model : Signal (Result Error (Remote Library))
 model = Signal.map2 loadLibrary cache libraryUrl
 
 loadLibrary : Cache -> String -> Result Error (Remote Library)
-loadLibrary cache url = load cache rawLibraryDecoder parseLibrary url
+loadLibrary cache url = load cache rawLibraryDecoder resolveLibrary url
 
 type alias Library = {
   books: List (Remote Book)
@@ -29,8 +29,8 @@ rawLibraryDecoder =
   object1 RawLibrary
     ("books" := list string)
 
-parseLibrary : Cache -> RawLibrary -> Result Error Library
-parseLibrary cache rawLibrary =
+resolveLibrary : Cache -> RawLibrary -> Result Error Library
+resolveLibrary cache rawLibrary =
   let booksResult = rawLibrary.books |> loadList cache loadBook
   in
     booksResult |> Result.map (\books ->
@@ -44,7 +44,7 @@ type alias RawLibrary = {
 }
 
 loadBook : Cache -> String -> Result Error (Remote Book)
-loadBook cache url = load cache rawBookDecoder parseBook url
+loadBook cache url = load cache rawBookDecoder resolveBook url
 
 type alias Book = {
   title: String,
@@ -57,8 +57,8 @@ rawBookDecoder =
     ("title" := string)
     ("author" := string)
 
-parseBook : Cache -> RawBook -> Result Error Book
-parseBook cache rawBook =
+resolveBook : Cache -> RawBook -> Result Error Book
+resolveBook cache rawBook =
   let authorResult = rawBook.author |> loadWriter cache
   in
     authorResult |> Result.map (\author ->
