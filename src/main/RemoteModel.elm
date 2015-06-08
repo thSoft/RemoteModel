@@ -14,10 +14,10 @@ main = Signal.map2 view libraryUrlContentMailbox.signal model
 
 -- Model
 
-model : Signal (Result Error (Remote Library))
+model : Signal (Loaded Library)
 model = Signal.map2 loadLibrary cache libraryUrl
 
-loadLibrary : Cache -> String -> Result Error (Remote Library)
+loadLibrary : Cache -> String -> Loaded Library
 loadLibrary cache url = load cache rawLibraryDecoder resolveLibrary url
 
 type alias Library = {
@@ -43,7 +43,7 @@ type alias RawLibrary = {
   books: List String
 }
 
-loadBook : Cache -> String -> Result Error (Remote Book)
+loadBook : Cache -> String -> Loaded Book
 loadBook cache url = load cache rawBookDecoder resolveBook url
 
 type alias Book = {
@@ -73,7 +73,7 @@ type alias RawBook = {
   author: String
 }
 
-loadWriter : Cache -> String -> Result Error (Remote Writer)
+loadWriter : Cache -> String -> Loaded Writer
 loadWriter cache url = loadRaw cache writerDecoder url
 
 type alias Writer = {
@@ -101,7 +101,7 @@ libraryUrl = Signal.map .string libraryUrlContentMailbox.signal
 otherUrls : Signal (List String)
 otherUrls = Signal.map collectUrlsOfLibraryResult model
 
-collectUrlsOfLibraryResult : Result Error (Remote Library) -> List String
+collectUrlsOfLibraryResult : Loaded Library -> List String
 collectUrlsOfLibraryResult libraryResult =
   case libraryResult of
     Result.Err error ->
@@ -121,17 +121,17 @@ libraryUrlContentMailbox = mailbox noContent
 
 -- View
 
-view : Content -> Result Error (Remote Library) -> Element
-view libraryUrlContent libraryResult =
+view : Content -> Loaded Library -> Element
+view libraryUrlContent loadedLibrary =
   let urlField = field Field.defaultStyle (libraryUrlContentMailbox.address |> message) "Library URL" libraryUrlContent
       exampleContent = Content "https://thsoft.firebaseio-demo.com/RemoteModel/library/0" (Selection 0 0 Forward)
       exampleButton = button (exampleContent |> message libraryUrlContentMailbox.address) "Load example data"
       header = [urlField, exampleButton] |> flow right
-      libraryView = libraryResult |> viewReference viewLibrary
+      libraryView = loadedLibrary |> viewLoaded viewLibrary
   in [header, libraryView] |> flow down
 
-viewReference : (Remote a -> Element) -> Result Error (Remote a) -> Element
-viewReference viewValue result = result |> Result.map viewValue |> or viewError
+viewLoaded : (Remote a -> Element) -> Loaded a -> Element
+viewLoaded viewObject result = result |> Result.map viewObject |> or viewError
 
 or : (x -> a) -> Result x a -> a
 or makeBadResult result =
